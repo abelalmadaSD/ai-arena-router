@@ -1,3 +1,5 @@
+import os
+import json
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import httpx
@@ -6,13 +8,16 @@ import config
 import json
 from anthropic import AsyncAnthropic
 
+# Inicializamos el cliente de Anthropic con la clave de API desde el archivo de configuración
+client = AsyncAnthropic()
+
+# Configuración de la aplicación FastAPI
 app = FastAPI(
     title="AI Arena Router API",
     description="API para evaluar y comparar respuestas de múltiples LLMs usando un Juez de IA."
 )
 
-client = AsyncAnthropic()
-
+# Definimos los modelos de lenguaje que se utilizarán
 MODELO_ECONOMICO = "claude-haiku-4-5-20251001"
 MODELO_INTELIGENTE = "claude-sonnet-5"
 
@@ -21,7 +26,42 @@ class PromptRequest(BaseModel):
 
 async def optimizar_prompt(mensaje_usuario: str) -> str:
     """
-    Toma la pregunta simple del usuario y la transforma en un prompt de ingeniería detallado.
+    Convierte un mensaje de usuario en un prompt de ingeniería de prompts
+    claro, estructurado y listo para enviarse a un LLM.
+
+    La función delega la generación al cliente asíncrono `AsyncAnthropic`, pasando
+    un `system_prompt` que instruye al modelo a actuar como un "Ingeniero de Prompts".
+    Devuelve exclusivamente el texto del prompt mejorado tal como lo entrega el modelo.
+
+    Parámetros
+    ----------
+    mensaje_usuario : str
+        Texto original proporcionado por el usuario. Se espera una cadena no vacía;
+        la validación de entrada debe realizarse por el llamador.
+
+    Devuelve
+    -------
+    str
+        Prompt mejorado generado por el LLM (sin metatexto ni explicaciones).
+
+    Excepciones
+    ----------
+    Propaga excepciones relacionadas con la red o la API (p. ej. errores del cliente
+    `AsyncAnthropic`). El llamador debe capturar y manejar `HTTPError`, timeouts u
+    otras excepciones según corresponda.
+
+    Consideraciones
+    -------------
+    - Esta función es asíncrona y debe invocarse con `await`.
+    - El modelo y `max_tokens` están definidos por las constantes del módulo.
+    - Para entradas sensibles aplique sanitización y políticas de privacidad antes de
+      enviar el texto a servicios externos.
+    - No realiza reintentos ni timeouts por sí misma; envolver en lógica de resiliencia
+      cuando sea necesario.
+
+    Ejemplo
+    -------
+    await optimizar_prompt("Explícame cómo funciona la retropropagación en redes neuronales")
     """
     system_prompt = (
         "Eres un Ingeniero de Prompts experto. Tu trabajo es reescribir la consulta del usuario "
@@ -72,7 +112,7 @@ async def definir_roles(mensaje_usuario: str) -> list:
     
 async def consultar_experto(rol: str, mensaje_usuario: str) -> dict:
     """
-    Llamada individual para un experto específico.
+        Llamada individual para un experto específico.
     """
     system_prompt = f"Responde a la siguiente consulta actuando estrictamente bajo el rol de un {rol} experto."
     
@@ -88,7 +128,7 @@ async def consultar_experto(rol: str, mensaje_usuario: str) -> dict:
 
 async def juez_final(mensaje_original: str, respuestas_expertos: list) -> str:
     """
-    El modelo inteligente (Sonnet) evalúa las 3 respuestas generadas y elige la mejor.
+        El modelo inteligente (Sonnet) evalúa las 3 respuestas generadas y elige la mejor.
     """
     bloque_respuestas = ""
     for exp in respuestas_expertos:
@@ -116,16 +156,29 @@ async def juez_final(mensaje_original: str, respuestas_expertos: list) -> str:
     texto_final = "".join([block.text for block in response.content if hasattr(block, 'text')])
     return texto_final
 
+async def trabajador_experto(cola_entrada: asyncio.Queue, cola_salida: asyncio.Queue, prompt_optimizado: str):
+    """Consumidor Asíncrono (Worker): Escucha la cola de tareas, procesa el mensaje y envía el resultado a la cola de salida."""
+    while not cola_entrada.empty():
+        # Extraemos el mensaje (el rol del experto asignado) de la cola
+        rol_experto = await cola_entrada.get()
+        
+        try:
+            print(f"📡 [Cola] Mensaje recibido: Despertando al experto -> {rol_experto}")
+            # Ejecutamos la consulta real al experto
+            resultado = await consultar_experto(rol_experto, prompt_optimizado)
+            # Colocamos el resultado procesado en la cola de salida para el Juez
+            await cola_salida.put(resultado)
+        finally:
+            # Le avisamos a la cola que el mensaje actual ya fue procesado con éxito
+            cola_entrada.task_done()
+
 @app.post("/ConsultarIA", summary="Consulta múltiples LLMs y evalúa con un Juez de IA")
 async def evaluar_prompt(request: PromptRequest):
     if not request.prompt.strip():
         raise HTTPException(status_code=400, detail="El prompt no puede estar vacío.")
         
     async with httpx.AsyncClient() as client:
-        # Consultas concurrentes en paralelo
-
-        # url_modelos = "https://openrouter.ai/api/v1/models"
-    
+        
         try:
             prompMejorado = await optimizar_prompt(request.prompt)
             print(f"Prompt mejorado: {prompMejorado}")  # Log del prompt mejorado
@@ -133,10 +186,40 @@ async def evaluar_prompt(request: PromptRequest):
             expertos = await definir_roles(prompMejorado)
             print(f"✨ Expertos seleccionados: {expertos}\n")
 
-            tareas = [consultar_experto(rol, prompMejorado) for rol in expertos]
-            respuestas = await asyncio.gather(*tareas)
 
-            veredicto_final = await juez_final(prompMejorado, respuestas)
+            # === ARQUITECTURA BASADA EN MENSAJES (PASO 3 DE TU CURSO) ===
+            # Creamos las dos colas necesarias para desacoplar el sistema
+            cola_tareas = asyncio.Queue()
+            cola_resultados = asyncio.Queue()
+
+            # Productor: Insertamos los roles elegidos como mensajes dentro de la cola de tareas
+            for rol in expertos:
+                await cola_tareas.put(rol)
+
+            print(f"📥 [Cola] Se han encolado {cola_tareas.qsize()} mensajes de tareas para los expertos.")
+
+            # Consumidores: Lanzamos trabajadores concurrentes para que escuchen y vacíen la cola de tareas
+            print("👥 Paso 3: Trabajadores independientes procesando la cola de mensajes...")
+            trabajadores = [
+                asyncio.create_task(trabajador_experto(cola_tareas, cola_resultados, prompMejorado))
+                for _ in range(len(expertos)) # Creamos un hilo de trabajo por cada experto elegido
+            ]
+            
+            # Esperamos a que la cola de entrada se vacíe por completo
+            await asyncio.gather(*trabajadores)
+
+            # Recolectamos todas las respuestas que los trabajadores dejaron en la cola de resultados
+            respuestas_consolidadas = []
+            while not cola_resultados.empty():
+                respuesta_mensaje = await cola_resultados.get()
+                respuestas_consolidadas.append(respuesta_mensaje)
+                cola_resultados.task_done()
+
+            # tareas = [consultar_experto(rol, prompMejorado) for rol in expertos]
+            # respuestas = await asyncio.gather(*tareas)
+
+            # veredicto_final = await juez_final(prompMejorado, respuestas)
+            veredicto_final = await juez_final(prompMejorado, respuestas_consolidadas)
     
             print("\n================ VEREDICTO FINAL DEL JUEZ ================")
             print(veredicto_final)
