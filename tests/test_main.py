@@ -1,7 +1,11 @@
 import sys
+import os
 import types
 import unittest
 from unittest.mock import AsyncMock, patch, Mock
+
+# 🛡️ OWASP / CI-CD Fix: Inyectamos la variable ficticia al inicio
+os.environ["ANTHROPIC_API_KEY"] = "sk-ant-pipeline-mock-key-12345"
 
 # Crear un módulo ficticio 'anthropic' para que la importación en main.py no falle
 anthropic_mod = types.ModuleType("anthropic")
@@ -13,8 +17,7 @@ def fake_async_anthropic(*args, **kwargs):
 anthropic_mod.AsyncAnthropic = fake_async_anthropic
 sys.modules['anthropic'] = anthropic_mod
 
-import main
-
+import src.servicios.claudeModels as main  # Importamos el módulo que queremos testear
 
 class TestMainAsync(unittest.IsolatedAsyncioTestCase):
 
