@@ -29,12 +29,14 @@ class TestMainAsync(unittest.IsolatedAsyncioTestCase):
 
         mock_response = Mock()
         mock_response.content = [Block("Prompt mejorado generado por el modelo.")]
+        mock_response.usage = Mock(input_tokens=100, output_tokens=50)  # Requisito para créditos
 
         async_mock = AsyncMock(return_value=mock_response)
 
         with patch('main.client.messages.create', new=async_mock):
             resultado = await main.optimizar_prompt("¿Qué es la retropropagación?")
-            self.assertEqual(resultado, "Prompt mejorado generado por el modelo.")
+            self.assertEqual(resultado["texto"], "Prompt mejorado generado por el modelo.")
+            self.assertIn("metricas", resultado["metricas"])
             async_mock.assert_awaited_once()
 
     async def test_definir_roles_success(self):
@@ -46,12 +48,14 @@ class TestMainAsync(unittest.IsolatedAsyncioTestCase):
         json_text = '{"expertos": ["Programador", "Historiador", "Poeta"]}'
         mock_response = Mock()
         mock_response.content = [Block(json_text)]
+        mock_response.usage = Mock(input_tokens=80, output_tokens=40)  # Requisito para créditos
 
         async_mock = AsyncMock(return_value=mock_response)
 
         with patch('main.client.messages.create', new=async_mock):
             expertos = await main.definir_roles("Analiza esta consulta y elige roles adecuados")
-            self.assertEqual(expertos, ["Programador", "Historiador", "Poeta"])
+            self.assertEqual(expertos["datos"], ["Programador", "Historiador", "Poeta"])
+            self.assertIn("metricas", expertos["metricas"])
             async_mock.assert_awaited_once()
 
 
