@@ -33,10 +33,10 @@ class TestMainAsync(unittest.IsolatedAsyncioTestCase):
 
         async_mock = AsyncMock(return_value=mock_response)
 
-        with patch('main.client.messages.create', new=async_mock):
+        with patch('src.servicios.claudeModels.client.messages.create', new=async_mock):
             resultado = await main.optimizar_prompt("¿Qué es la retropropagación?")
             self.assertEqual(resultado["texto"], "Prompt mejorado generado por el modelo.")
-            self.assertIn("metricas", resultado["metricas"])
+            self.assertIn("metricas", resultado)
             async_mock.assert_awaited_once()
 
     async def test_definir_roles_success(self):
@@ -52,10 +52,10 @@ class TestMainAsync(unittest.IsolatedAsyncioTestCase):
 
         async_mock = AsyncMock(return_value=mock_response)
 
-        with patch('main.client.messages.create', new=async_mock):
+        with patch('src.servicios.claudeModels.client.messages.create', new=async_mock):
             expertos = await main.definir_roles("Analiza esta consulta y elige roles adecuados")
             self.assertEqual(expertos["datos"], ["Programador", "Historiador", "Poeta"])
-            self.assertIn("metricas", expertos["metricas"])
+            self.assertIn("metricas", expertos)
             async_mock.assert_awaited_once()
 
 
