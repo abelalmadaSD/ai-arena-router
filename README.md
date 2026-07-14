@@ -2,22 +2,26 @@
 
 ## Descripción general
 
-AI Arena Router es una API REST construida con FastAPI para enrutar una sola consulta de usuario a múltiples modelos de lenguaje y evaluar sus respuestas mediante un juez final. La aplicación optimiza el prompt, selecciona expertos especializados de forma dinámica, ejecuta consultas concurrentes y devuelve una respuesta consolidada junto con métricas de consumo y estimaciones de costo.
+AI Arena Router es una API REST construida con FastAPI para enrutar consultas de usuario hacia múltiples agentes de lenguaje y generar una evaluación final mediante un juez analítico.
 
-El objetivo principal es permitir comparativas de LLMs y generar una evaluación de alta calidad basada en varias respuestas especializadas.
+La aplicación realiza los siguientes pasos:
+- Recibe un `prompt` de usuario.
+- Optimiza el prompt usando un modelo económico.
+- Selecciona dinámicamente roles expertos especializados.
+- Ejecuta consultas concurrentes por cada experto.
+- Evalúa y sintetiza todas las respuestas con un juez final.
+- Devuelve la respuesta final junto con métricas de consumo de tokens y estimaciones de costo.
 
 ## Requisitos previos
 
-Antes de ejecutar la API, debes contar con:
-
 - Python 3.11 o superior.
-- Un entorno virtual de Python (recomendado).
-- Una clave de API válida de Anthropic.
-- `pip` instalado y actualizado.
+- `pip` instalado.
+- Entorno virtual recomendado.
+- Clave de API de Anthropic.
 
 ## Instalación y ejecución en local
 
-1. Clona o descarga el repositorio:
+1. Clona el repositorio:
 
    ```bash
    git clone https://github.com/<tu-usuario>/ai-arena-router.git
@@ -56,10 +60,16 @@ Antes de ejecutar la API, debes contar con:
    ANTHROPIC_API_KEY=tu_clave_de_anthropic
    ```
 
+   Opcionalmente, si tu proyecto usa OpenAI en alguna extensión futura:
+
+   ```env
+   OPENAI_API_KEY=tu_clave_de_openai
+   ```
+
 5. Inicia la API localmente:
 
    ```bash
-   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   uvicorn main:app --host 127.0.0.1 --port 8000 --reload
    ```
 
 6. Abre la documentación interactiva:
@@ -69,26 +79,28 @@ Antes de ejecutar la API, debes contar con:
 
 ## Uso de la API
 
-### Endpoint principal
+### Endpoint disponible
 
 `POST /v1/ConsultarIA`
 
-Descripción: envía un prompt de usuario, genera un prompt optimizado, consulta múltiples expertos y devuelve una evaluación final junto con métricas de consumo.
+#### Descripción
+
+Consulta un único endpoint que desencadena el flujo completo de optimización, enrutamiento y evaluación.
 
 #### Request
 
 - Ruta: `/v1/ConsultarIA`
 - Método: `POST`
-- `Content-Type`: `application/json`
-- Body:
-  - `prompt` (string): Consulta del usuario.
+- Encabezado: `Content-Type: application/json`
+- Cuerpo:
+  - `prompt` (string): texto de la consulta del usuario.
 
 Ejemplo con `curl`:
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/v1/ConsultarIA" \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "Explícame cómo se calcula el gradiente descendente en redes neuronales."}'
+  -d '{"prompt": "Explícame cómo funciona el algoritmo de gradiente descendente."}'
 ```
 
 Ejemplo en Python:
@@ -97,9 +109,7 @@ Ejemplo en Python:
 import requests
 
 url = "http://127.0.0.1:8000/v1/ConsultarIA"
-payload = {
-    "prompt": "Explícame cómo se calcula el gradiente descendente en redes neuronales."
-}
+payload = {"prompt": "Explícame cómo funciona el algoritmo de gradiente descendente."}
 headers = {"Content-Type": "application/json"}
 
 response = requests.post(url, json=payload, headers=headers)
@@ -107,19 +117,19 @@ print(response.status_code)
 print(response.json())
 ```
 
-#### Ejemplo de response exitoso
+#### Ejemplo de response
 
 ```json
 {
   "resultado": {
-    "prompt_original": "Explícame cómo se calcula el gradiente descendente en redes neuronales.",
-    "prompt_optimizado": "Explica de forma clara y técnica cómo funciona el algoritmo de gradiente descendente en redes neuronales, incluyendo fórmulas, pasos y consideraciones prácticas.",
+    "prompt_original": "Explícame cómo funciona el algoritmo de gradiente descendente.",
+    "prompt_optimizado": "Explica de modo claro y técnico el algoritmo de gradiente descendente, sus fórmulas, pasos clave y recomendaciones para su aplicación en redes neuronales.",
     "expertos_seleccionados": [
       "Matemático",
       "Programador",
       "Científico"
     ],
-    "evaluacion_juez": "El mejor enfoque combina la explicación matemática del matemático con la implementación práctica del programador. \n...respuesta final sintetizada y justificada..."
+    "evaluacion_juez": "...respuesta final sintetizada y justificada..."
   },
   "auditoria_consumo": {
     "tiempo_total_ejecucion_segundos": 3.42,
@@ -165,12 +175,20 @@ print(response.json())
 }
 ```
 
-> Nota: los valores de `tokens` y `costo_total_creditos_usd` en el ejemplo son estimaciones de demostración y pueden variar según la respuesta real del modelo.
+> Nota: los valores del ejemplo son ilustrativos. Los totales reales dependen de la respuesta de los modelos y de la configuración de tokens.
+
+## Detalles del proyecto
+
+- `main.py`: arranca la aplicación FastAPI y registra el router de IA.
+- `src/routers/claudeModels.py`: define el endpoint `/v1/ConsultarIA` y orquesta el flujo de consulta.
+- `src/models/claudeModels.py`: define el esquema Pydantic `PromptRequest`.
+- `src/servicios/claudeModels.py`: implementa la lógica de optimización de prompt, selección de roles, consultas a expertos y evaluación del juez.
+- `src/config.py`: carga variables de entorno y define modelos y precios de tokens.
 
 ## Notas adicionales
 
-- Esta API usa FastAPI y genera documentación automática en `/docs` y `/redoc`.
-- No compartas tu clave `ANTHROPIC_API_KEY` en repositorios públicos.
-- Si deseas modificar los modelos o las tarifas de tokens, revisa `src/config.py`.
-- Para uso en producción, despliega con un servidor ASGI adecuado y deshabilita `--reload`.
+- La aplicación exige `ANTHROPIC_API_KEY` en `.env` para arrancar.
+- El endpoint único devuelve JSON con `resultado` y `auditoria_consumo`.
+- Si cambias modelos o precios, actualiza `src/config.py`.
+- Para un entorno de producción, utiliza un servidor ASGI adecuado y no utilices `--reload`.
 
