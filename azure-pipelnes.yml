@@ -1,0 +1,29 @@
+trigger:
+- dev
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.11'
+  displayName: 'Configurar entorno de Python 3.11'
+
+- script: |
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+    pip install bandit
+  displayName: 'Instalar dependencias del proyecto y Herramientas de Seguridad'
+
+- script: |
+    pip install flake8
+    flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+    bandit -r src/ main.py -f txt
+  displayName: 'Validación de Estructura y Buenas Prácticas'
+  continueOnError: true # Permite que el pipeline continúe si encuentra advertencias, puedes quitarlo si quieres que falle ante vulnerabilidades
+
+- script: |
+    python -m unittest discover -s tests
+  displayName: 'Ejecutar Pruebas Unitarias Nativas'
