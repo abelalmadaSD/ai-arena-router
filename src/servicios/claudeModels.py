@@ -6,10 +6,40 @@ from src.config import ANTHROPIC_API_KEY, MODELO_ECONOMICO, MODELO_INTELIGENTE, 
 client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 
 def calcular_costo(model: str, input_tokens: int, output_tokens: int) -> float:
-    """Calcula el costo estimado de la petición en USD basado en los tokens consumidos."""
+    """
+    Calcula el costo estimado en USD para una llamada al modelo basada en tokens consumidos.
+
+    Parámetros
+    ----------
+    model : str
+        Clave del modelo utilizada para buscar precios en PRECIOS_MODELOS.
+    input_tokens : int
+        Número de tokens de entrada (prompt).
+    output_tokens : int
+        Número de tokens de salida (respuesta del modelo).
+
+    Devuelve
+    -------
+    float
+        Costo estimado en dólares americanos (USD), redondeado a 6 decimales.
+
+    Notas
+    -----
+    - Los precios en PRECIOS_MODELOS se esperan en USD por 1,000,000 tokens.
+    - La función maneja valores negativos de tokens convirtiéndolos a cero.
+    """
+    # Validación básica y normalización
+    if input_tokens is None:
+        input_tokens = 0
+    if output_tokens is None:
+        output_tokens = 0
+
+    input_tokens = max(0, int(input_tokens))
+    output_tokens = max(0, int(output_tokens))
+
     precios = PRECIOS_MODELOS.get(model, {"input": 0.0, "output": 0.0})
-    costo_in = (input_tokens / 1_000_000) * precios["input"]
-    costo_out = (output_tokens / 1_000_000) * precios["output"]
+    costo_in = (input_tokens / 1_000_000) * precios.get("input", 0.0)
+    costo_out = (output_tokens / 1_000_000) * precios.get("output", 0.0)
     return round(costo_in + costo_out, 6)
 
 async def optimizar_prompt(mensaje_usuario: str) -> str:
