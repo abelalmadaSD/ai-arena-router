@@ -4,7 +4,6 @@ import types
 import unittest
 from unittest.mock import AsyncMock, patch, Mock
 
-# 🛡️ OWASP / CI-CD Fix: Inyectamos la variable ficticia al inicio
 os.environ["ANTHROPIC_API_KEY"] = "sk-ant-pipeline-mock-key-12345"
 
 # Crear un módulo ficticio 'anthropic' para que la importación en main.py no falle
