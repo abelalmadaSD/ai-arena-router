@@ -118,7 +118,12 @@ async def definir_roles(mensaje_usuario: str) -> list:
         "Eres un enrutador de inteligencia artificial de alta precisión.\n"
         "Tu única tarea es leer el mensaje del usuario y elegir exactamente 3 roles especializados "
         "de la siguiente lista que sean los mejores y más variados para responderla:\n"
-        "[Programador, Historiador, Poeta, Matemático, Abogado, Economista, Médico, Filósofo, Científico, Crítico de Cine]\n\n"
+        "[Programador, Historiador, Poeta, Matemático, Abogado, Economista, Médico, Filósofo, Científico, Crítico de Cine, "
+        "Psicólogo, Ingeniero de Datos, Especialista en Marketing, Arquitecto de Software, Experto en Seguridad, "
+        "Bioquímico, Sociólogo, Especialista en Machine Learning, Gerente de Proyectos, Diseñador UX/UI, "
+        "Especialista en DevOps, Escritor Técnico, Analista de Sistemas, Especialista en Redes, Consultor de Negocios, "
+        "Experto en Cloud Computing, Especialista en Bases de Datos, Paleontólogo, Astrónomo, Chef Profesional, "
+        "Entrenador Deportivo, Fisioterapeuta, Nutricionista Deportivo]\n\n"
         "Debes responder ESTRICTAMENTE con un objeto JSON válido con el siguiente formato:\n"
         '{"expertos": ["Rol1", "Rol2", "Rol3"]}\n'
         "No agregues texto extra, ni saludos, ni explicaciones, solo el JSON puro."
@@ -171,7 +176,7 @@ async def consultar_experto(rol: str, mensaje_usuario: str) -> dict:
     
     response = await client.messages.create(
         model=MODELO_ECONOMICO,
-        max_tokens=400,
+        max_tokens=1000,
         system=system_prompt,
         messages=[{"role": "user", "content": mensaje_usuario}]
     )
@@ -193,48 +198,80 @@ async def consultar_experto(rol: str, mensaje_usuario: str) -> dict:
         }
     }
 
-async def juez_final(mensaje_original: str, respuestas_expertos: list) -> str:
+async def juez_final(mensaje_original: str, respuestas_expertos: list) -> dict:
     """
-        El modelo inteligente (Sonnet) evalúa las 3 respuestas generadas y elige la mejor.
+        El modelo inteligente (Sonnet) evalúa las respuestas generadas y elige la mejor.
     """
+    # 🔍 VALIDACIÓN: Verificar que hay respuestas de expertos
+    if not respuestas_expertos or len(respuestas_expertos) == 0:
+        return {
+            "texto_final": f"Lo siento, no se pudieron generar respuestas de los expertos para la pregunta: '{mensaje_original}'",
+            "metricas": {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "costo_usd": 0.0
+            }
+        }
+
+    # Construir bloque de respuestas con validación
     bloque_respuestas = ""
-    for exp in respuestas_expertos:
-        bloque_respuestas += f"\n--- RESPUESTA DEL {exp['rol'].upper()} ---\n{exp['respuesta']}\n"
+    for i, exp in enumerate(respuestas_expertos, 1):
+        rol = exp.get("rol", f"Experto {i}")
+        respuesta = exp.get("respuesta", "[SIN RESPUESTA]")
+        
+        if not respuesta or respuesta.strip() == "":
+            respuesta = "[Experto no retornó contenido]"
+        
+        bloque_respuestas += f"\n--- RESPUESTA {i}: {rol.upper()} ---\n{respuesta}\n"
+
 
     system_prompt = (
         "Eres el Juez Final en un panel de expertos de IA. Tu trabajo es analizar la pregunta original "
-        "del usuario y evaluar críticamente las respuestas proporcionadas por 3 expertos especializados.\n"
+        "del usuario y evaluar críticamente las respuestas proporcionadas por los expertos especializados.\n"
         "Debes elegir cuál de las respuestas es la mejor o crear una síntesis perfecta basada en los mejores puntos. "
-        "Justifica brevemente tu decisión al inicio y entrega la respuesta final ganadora de manera limpia."
+        "Justifica brevemente tu decisión al inicio y entrega la respuesta final de manera clara y concisa."
     )
 
     consulta_juez = (
         f"Pregunta original del usuario: '{mensaje_original}'\n\n"
-        f"Aquí tienes las respuestas de los tres expertos:{bloque_respuestas}"
+        f"Aquí tienes las respuestas de los expertos:{bloque_respuestas}"
     )
 
-    response = await client.messages.create(
-        model=MODELO_INTELIGENTE, # Sonnet para máxima calidad analítica
-        max_tokens=800,
-        system=system_prompt,
-        messages=[{"role": "user", "content": consulta_juez}]
-    )
-    
-    texto_final = "".join([block.text for block in response.content if hasattr(block, 'text')])
-    
-    in_tokens = response.usage.input_tokens
-    out_tokens = response.usage.output_tokens
+    try:
+        response = await client.messages.create(
+            model=MODELO_INTELIGENTE,  # Sonnet para máxima calidad analítica
+            max_tokens=1500,
+            system=system_prompt,
+            messages=[{"role": "user", "content": consulta_juez}]
+        )
+        
+        texto_final = "".join([block.text for block in response.content if hasattr(block, 'text')])
+        
+        if not texto_final or texto_final.strip() == "":
+            texto_final = "El juez no pudo generar una síntesis de las respuestas proporcionadas."
 
-    # return texto_final
+        
+        in_tokens = response.usage.input_tokens
+        out_tokens = response.usage.output_tokens
 
-    return {
-        "texto_final": texto_final,
-        "metricas": {
-            "input_tokens": in_tokens,
-            "output_tokens": out_tokens,
-            "costo_usd": calcular_costo(MODELO_INTELIGENTE, in_tokens, out_tokens)
+        return {
+            "texto_final": texto_final,
+            "metricas": {
+                "input_tokens": in_tokens,
+                "output_tokens": out_tokens,
+                "costo_usd": calcular_costo(MODELO_INTELIGENTE, in_tokens, out_tokens)
+            }
         }
-    }
+        
+    except Exception as e:
+        return {
+            "texto_final": f"Error al evaluar las respuestas: {str(e)}",
+            "metricas": {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "costo_usd": 0.0
+            }
+        }
 
 async def trabajador_experto(cola_entrada: asyncio.Queue, cola_salida: asyncio.Queue, prompt_optimizado: str):
     """Consumidor Asíncrono (Worker): Escucha la cola de tareas, procesa el mensaje y envía el resultado a la cola de salida."""
@@ -243,7 +280,6 @@ async def trabajador_experto(cola_entrada: asyncio.Queue, cola_salida: asyncio.Q
         rol_experto = await cola_entrada.get()
         
         try:
-            print(f"📡 [Cola] Mensaje recibido: Despertando al experto -> {rol_experto}")
             # Ejecutamos la consulta real al experto
             resultado = await consultar_experto(rol_experto, prompt_optimizado)
             # Colocamos el resultado procesado en la cola de salida para el Juez

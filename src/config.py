@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
 
 # Carga las variables desde el archivo .env local
 load_dotenv()
@@ -7,6 +8,9 @@ load_dotenv()
 # OWASP: Validación estricta en el arranque del sistema
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "claveTemporalCurso-1234567890")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_HOURS = 24
 
 if not ANTHROPIC_API_KEY:
     raise RuntimeError(
