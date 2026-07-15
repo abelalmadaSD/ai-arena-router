@@ -87,5 +87,5 @@ async def login(request: LoginRequest):
     
     return {
         "access_token": token_jwt,
-        "token_type": "bearer"
+        "token_type": "bearer"  # nosec B105 - Tipo de token estándar OAuth 2.0, no una credencial
     }
