@@ -1,13 +1,17 @@
 import asyncio
 import time
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from src.models.claudeModels import PromptRequest
 from src.servicios import claudeModels
+from src.security import verificar_token_jwt
 
 router = APIRouter(prefix="/v1", tags=["Enrutamiento IA"])
 
 @router.post("/ConsultarIA", summary="Consulta múltiples LLMs concurrentemente y evalúa con un Juez")
-async def evaluar_prompt(request: PromptRequest):
+async def evaluar_prompt(request: PromptRequest, token_payload: dict = Depends(verificar_token_jwt)):
+    # OWASP: Autenticación verificada con JWT
+    usuario = token_payload.get("sub", "desconocido")
+    
     # OWASP: Sanitización manual de espacios en blanco redundantes
     prompt_usuario = request.prompt.strip()
     tiempo_inicio_global = time.perf_counter()
@@ -44,6 +48,7 @@ async def evaluar_prompt(request: PromptRequest):
 
         # 5. Juicio analítico final
         juez = await claudeModels.juez_final(promp_mejorado, respuestas_consolidadas)
+
         veredicto = juez["texto_final"]
 
         # =====================================================================
@@ -68,11 +73,6 @@ async def evaluar_prompt(request: PromptRequest):
             tokens_salida_total += m["output_tokens"]
             costo_total_usd += m["costo_usd"]
 
-
-        print(f"[AUDITORÍA]: Tiempo total de ejecución: {tiempo_total_global} segundos")
-        print(f"[AUDITORÍA]: Tokens de entrada totales: {tokens_entrada_total}")
-        print(f"[AUDITORÍA]: Tokens de salida totales: {tokens_salida_total}")
-        print(f"[AUDITORÍA]: Costo total estimado (USD): {round(costo_total_usd, 5)}")
 
         return {
             "resultado": {
