@@ -24,7 +24,7 @@ async def login(request: LoginRequest):
     Endpoint de autenticación que genera un token JWT.
     
     Para propósitos de demostración/curso, valida credenciales simples.
-    En producción, verificarías contra una base de datos de usuarios.
+    En producción, base de datos de usuarios.
     
     Parámetros
     ----------

@@ -10,7 +10,6 @@ security = HTTPBearer()
 def crear_token_jwt(datos: dict, expiracion: Optional[timedelta] = None) -> str:
     """
     Genera un token JWT firmado con la clave secreta.
-    
     """
     a_codificar = datos.copy()
     
@@ -27,8 +26,6 @@ def crear_token_jwt(datos: dict, expiracion: Optional[timedelta] = None) -> str:
 async def verificar_token_jwt(credenciales = Depends(security)) -> dict:
     """
     Verifica la validez del token JWT proporcionado en el header Authorization.
-    
-   
     """
     token = credenciales.credentials
     

@@ -5,6 +5,6 @@ class PromptRequest(BaseModel):
     prompt: str = Field(
         ...,
         min_length=3,
-        max_length=300,
+        max_length=100,
         description="Consulta del usuario sanitizada y acotada por seguridad corporativa."
     )

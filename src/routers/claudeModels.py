@@ -51,9 +51,7 @@ async def evaluar_prompt(request: PromptRequest, token_payload: dict = Depends(v
 
         veredicto = juez["texto_final"]
 
-        # =====================================================================
-        # 📈 CONSOLIDACIÓN DE MÉTRICAS Y CRÉDITOS (AUDITORÍA OWASP/COSTOS)
-        # =====================================================================
+        # CONSOLIDACIÓN DE MÉTRICAS Y CRÉDITOS (AUDITORÍA OWASP/COSTOS)
         tiempo_total_global = round(time.perf_counter() - tiempo_inicio_global, 2)
 
         metricas_expertos = {}
