@@ -2,22 +2,24 @@
 
 ## Descripción general
 
-AI Arena Router es una API REST construida con FastAPI para enrutar consultas de usuario hacia múltiples agentes de lenguaje y generar una evaluación final mediante un juez analítico.
+AI Arena Router es una API REST construida con FastAPI para recibir consultas de usuario, autenticarlas con JWT, optimizar el prompt, enrutarlo a expertos especializados y devolver una respuesta final evaluada por un juez analítico.
 
-La aplicación realiza los siguientes pasos:
-- Recibe un `prompt` de usuario.
-- Optimiza el prompt usando un modelo económico.
-- Selecciona dinámicamente roles expertos especializados.
-- Ejecuta consultas concurrentes por cada experto.
-- Evalúa y sintetiza todas las respuestas con un juez final.
-- Devuelve la respuesta final junto con métricas de consumo de tokens y estimaciones de costo.
+El flujo del servicio incluye:
+- recibir un `prompt` del usuario;
+- autenticar la llamada mediante un token JWT;
+- optimizar el prompt con un modelo económico;
+- seleccionar roles expertos especializados;
+- ejecutar consultas concurrentes por cada experto;
+- evaluar y sintetizar las respuestas con un juez final;
+- devolver la respuesta final junto con métricas de consumo y costo estimado.
 
 ## Requisitos previos
 
 - Python 3.11 o superior.
 - `pip` instalado.
 - Entorno virtual recomendado.
-- Clave de API de Anthropic.
+- Acceso a Anthropic para el modelo utilizado por el servicio.
+- Variables de entorno necesarias para la autenticación y la configuración del proyecto.
 
 ## Instalación y ejecución en local
 
@@ -54,17 +56,7 @@ La aplicación realiza los siguientes pasos:
    pip install -r requirements.txt
    ```
 
-4. Crea un archivo `.env` en la raíz del proyecto con la clave de Anthropic:
-
-   ```env
-   ANTHROPIC_API_KEY=tu_clave_de_anthropic
-   ```
-
-   Opcionalmente, si tu proyecto usa OpenAI en alguna extensión futura:
-
-   ```env
-   OPENAI_API_KEY=tu_clave_de_openai
-   ```
+4. Configura las variables de entorno requeridas por la aplicación.
 
 5. Inicia la API localmente:
 
@@ -77,20 +69,46 @@ La aplicación realiza los siguientes pasos:
    - Swagger UI: `http://127.0.0.1:8000/docs`
    - ReDoc: `http://127.0.0.1:8000/redoc`
 
+## Autenticación
+
+El proyecto expone un endpoint de autenticación para obtener un token JWT.
+
+### Endpoint: `POST /auth/login`
+
+Este endpoint valida las credenciales del usuario y devuelve un token bearer que debe enviarse en el encabezado `Authorization` para consumir el endpoint principal.
+
+#### Ejemplo de solicitud
+
+```bash
+curl -X POST "http://127.0.0.1:8000/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"usuario": "curso", "contraseña": "segura123"}'
+```
+
+#### Ejemplo de respuesta
+
+```json
+{
+  "access_token": "<token_jwt>",
+  "token_type": "bearer"
+}
+```
+
 ## Uso de la API
 
-### Endpoint disponible
+### Endpoint principal
 
 `POST /v1/ConsultarIA`
 
 #### Descripción
 
-Consulta un único endpoint que desencadena el flujo completo de optimización, enrutamiento y evaluación.
+Este endpoint requiere autenticación JWT y desencadena el flujo completo de optimización, enrutamiento y evaluación.
 
 #### Request
 
 - Ruta: `/v1/ConsultarIA`
 - Método: `POST`
+- Encabezado: `Authorization: Bearer <token>`
 - Encabezado: `Content-Type: application/json`
 - Cuerpo:
   - `prompt` (string): texto de la consulta del usuario.
@@ -99,6 +117,7 @@ Ejemplo con `curl`:
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/v1/ConsultarIA" \
+  -H "Authorization: Bearer <token_jwt>" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Explícame cómo funciona el algoritmo de gradiente descendente."}'
 ```
@@ -110,7 +129,10 @@ import requests
 
 url = "http://127.0.0.1:8000/v1/ConsultarIA"
 payload = {"prompt": "Explícame cómo funciona el algoritmo de gradiente descendente."}
-headers = {"Content-Type": "application/json"}
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer <token_jwt>"
+}
 
 response = requests.post(url, json=payload, headers=headers)
 print(response.status_code)
@@ -150,18 +172,18 @@ print(response.json())
       },
       "3_panel_expertos_concurrentes": {
         "Matemático": {
-          "tokens_entrada": 80,
-          "tokens_salida": 150,
+          "input_tokens": 80,
+          "output_tokens": 150,
           "costo_estimado_usd": 0.00028
         },
         "Programador": {
-          "tokens_entrada": 75,
-          "tokens_salida": 140,
+          "input_tokens": 75,
+          "output_tokens": 140,
           "costo_estimado_usd": 0.00026
         },
         "Científico": {
-          "tokens_entrada": 70,
-          "tokens_salida": 145,
+          "input_tokens": 70,
+          "output_tokens": 145,
           "costo_estimado_usd": 0.00025
         }
       },
@@ -177,18 +199,43 @@ print(response.json())
 
 > Nota: los valores del ejemplo son ilustrativos. Los totales reales dependen de la respuesta de los modelos y de la configuración de tokens.
 
-## Detalles del proyecto
+## Estructura del proyecto
 
-- `main.py`: arranca la aplicación FastAPI y registra el router de IA.
+- `main.py`: arranca la aplicación FastAPI y registra los routers de autenticación y de IA.
+- `src/routers/auth.py`: expone el endpoint `/auth/login` y genera el token JWT.
 - `src/routers/claudeModels.py`: define el endpoint `/v1/ConsultarIA` y orquesta el flujo de consulta.
 - `src/models/claudeModels.py`: define el esquema Pydantic `PromptRequest`.
-- `src/servicios/claudeModels.py`: implementa la lógica de optimización de prompt, selección de roles, consultas a expertos y evaluación del juez.
-- `src/config.py`: carga variables de entorno y define modelos y precios de tokens.
+- `src/servicios/claudeModels.py`: implementa la optimización de prompt, la selección de roles, las consultas a expertos y la evaluación del juez.
+- `src/security.py`: maneja la creación y verificación de tokens JWT.
+- `src/config.py`: carga variables de entorno y define modelos, precios y configuraciones del sistema.
+- `tests/test_main.py`: pruebas básicas del flujo de optimización y selección de roles.
+- `Dockerfile` y `k8s/`: recursos para ejecutar el servicio en contenedores y Kubernetes.
+
+## Despliegue con Docker y Kubernetes
+
+### Docker
+
+```bash
+docker build -t ai-arena-router .
+docker run -p 8000:8000 ai-arena-router
+```
+
+### Kubernetes
+
+El repositorio incluye un ejemplo de deployment y service en `k8s/` para exponer la API detrás de un balanceador de carga.
+
+## Pruebas
+
+Ejecuta las pruebas desde el entorno virtual del proyecto para asegurar que las dependencias estén disponibles:
+
+```powershell
+.\venv\Scripts\Activate.ps1
+python -m unittest discover -s tests -v
+```
 
 ## Notas adicionales
 
-- La aplicación exige `ANTHROPIC_API_KEY` en `.env` para arrancar.
-- El endpoint único devuelve JSON con `resultado` y `auditoria_consumo`.
-- Si cambias modelos o precios, actualiza `src/config.py`.
-- Para un entorno de producción, utiliza un servidor ASGI adecuado y no utilices `--reload`.
+- El endpoint principal devuelve un JSON con `resultado` y `auditoria_consumo`.
+- Si cambias modelos o precios, revisa `src/config.py`.
+- Para un entorno de producción, utiliza un servidor ASGI adecuado y evita `--reload`.
 
