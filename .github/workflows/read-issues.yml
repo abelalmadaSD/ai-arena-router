@@ -8,6 +8,8 @@ on:
   workflow_dispatch: {}
   issues:
     types: [opened, edited, reopened]
+  pull_request:
+    types: [opened, synchronize, reopened]
   schedule:
     - cron: '0 9 * * *' # Ejecuta diariamente a las 09:00 UTC
 
@@ -31,5 +33,7 @@ jobs:
       - name: Run agent script
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           python agent_issues.py
