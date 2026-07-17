@@ -192,3 +192,12 @@ print(response.json())
 - Si cambias modelos o precios, actualiza `src/config.py`.
 - Para un entorno de producción, utiliza un servidor ASGI adecuado y no utilices `--reload`.
 
+## Automatización: workflow para leer Issues
+
+Se ha añadido un workflow de GitHub Actions en `.github/workflows/read-issues.yml` que ejecuta `agent_issues.py` en los siguientes casos:
+
+- Cuando se abre, edita o reabre un `issue` en el repositorio.
+- Ejecuta también de forma programada (cron diaria) para revisar issues abiertos.
+
+El workflow instala dependencias y ejecuta el script con la variable de entorno `GITHUB_TOKEN` disponible automáticamente desde `secrets.GITHUB_TOKEN`.
+
