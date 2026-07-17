@@ -36,7 +36,6 @@ async def login(request: LoginRequest):
     TokenResponse
         Token JWT válido por 24 horas.
     
-    Levanta
     -------
     HTTPException
         Si las credenciales son inválidas (status 401).
@@ -65,7 +64,7 @@ async def login(request: LoginRequest):
     Authorization: Bearer <access_token>
     ```
     """
-    # OWASP: Credenciales por defecto para curso
+    # Credenciales por defecto para curso
     USUARIO_CURSO = os.getenv("CURSO_USER", "curso")
     CONTRASEÑA_CURSO = os.getenv("CURSO_PASSWORD", "segura123")
     
