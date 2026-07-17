@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import AsyncMock, patch, Mock
 
 os.environ["ANTHROPIC_API_KEY"] = "sk-ant-pipeline-mock-key-12345"
+os.environ["JWT_SECRET_KEY"] = "GmPjy5spV1C4ohKTZjqJMX3AkynY3127"
 
 # Crear un módulo ficticio 'anthropic' para que la importación en main.py no falle
 anthropic_mod = types.ModuleType("anthropic")
